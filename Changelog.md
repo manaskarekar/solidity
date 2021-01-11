@@ -4,6 +4,7 @@ Language Features:
 
 
 Compiler Features:
+ * Yul Optimizer: If all cases of a ``switch`` statement with a default case start with the same prefix, move that prefix out of the ``switch``.
 
 
 Bugfixes:
