@@ -61,6 +61,8 @@ public:
 		tx_context.block_timestamp += 15;
 		recorded_logs.clear();
 	}
+	/// Prints contents of storage at all addresses in host to @param _os.
+	void print_storage(std::ostringstream& _os);
 
 	bool account_exists(evmc::address const& _addr) const noexcept final
 	{
@@ -86,6 +88,8 @@ public:
 
 private:
 	evmc::address m_currentAddress = {};
+	/// Prints contents of storage at @param _addr to @param _os.
+	void print_storage(evmc::address const& _addr, std::ostringstream& _os);
 
 	static evmc::result precompileECRecover(evmc_message const& _message) noexcept;
 	static evmc::result precompileSha256(evmc_message const& _message) noexcept;

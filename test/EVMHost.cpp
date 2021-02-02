@@ -754,3 +754,17 @@ evmc::result EVMHost::resultWithGas(
 	result.output_size = _data.size();
 	return result;
 }
+
+void EVMHost::print_storage(ostringstream& _os)
+{
+	for (auto const& [addr, mockedAccount]: accounts)
+		print_storage(addr, _os);
+}
+
+void EVMHost::print_storage(evmc::address const& _addr, ostringstream& _os)
+{
+	_os << "Address: " << convertFromEVMC(_addr) << endl;
+	for (auto const& [slot, value]: accounts[_addr].storage)
+		if (convertFromEVMC(value.value) != h256())
+			_os << convertFromEVMC(slot) << " : " << convertFromEVMC(value.value) << endl;
+}
