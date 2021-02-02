@@ -27,9 +27,11 @@
 
 #include <libsolutil/CommonData.h>
 
+#include <range/v3/numeric/accumulate.hpp>
 #include <range/v3/view/drop_last.hpp>
 #include <range/v3/view/enumerate.hpp>
 #include <range/v3/view/slice.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <optional>
 
@@ -86,34 +88,36 @@ map<u256, Inliner::InlinableBlock> Inliner::determineInlinableBlocks(AssemblyIte
 	return result;
 }
 
-namespace
-{
-optional<AssemblyItem::JumpType> determineJumpType(AssemblyItem::JumpType _intoBlock, AssemblyItem::JumpType _outOfBlock)
-{
-	// For now only inline jumps into- and out-of functions, i.e. entire functions at a time.
-	// In the future we may want to inline further jump combinations.
-	if (_intoBlock == AssemblyItem::JumpType::IntoFunction && _outOfBlock == AssemblyItem::JumpType::OutOfFunction)
-		return AssemblyItem::JumpType::Ordinary;
-	return nullopt;
-}
-}
-
 optional<AssemblyItem> Inliner::shouldInline(u256 const&, AssemblyItem const& _jump, InlinableBlock const& _block) const
 {
-	// Determine the exit jump to be used, if the block is inlined.
 	AssemblyItem exitJump = _block.items.back();
-	if (auto exitJumpType = determineJumpType(_jump.getJumpType(), exitJump.getJumpType()))
-		exitJump.setJumpType(*exitJumpType);
-	else
-		return nullopt;
 
-	// Always try to inline if there is at most one call to the block.
-	if (_block.pushTagCount == 1)
-		return exitJump;
+	if (
+		_jump.getJumpType() == AssemblyItem::JumpType::IntoFunction &&
+		exitJump.getJumpType() == AssemblyItem::JumpType::OutOfFunction
+	)
+	{
+		exitJump.setJumpType(AssemblyItem::JumpType::Ordinary);
+		// Accumulate size of inlined block in bytes.
+		size_t codeSize = ranges::accumulate(
+			ranges::views::drop_last(_block.items, 1) |
+			ranges::views::transform(
+				[](auto const& _item) { return _item.bytesRequired(3); }
+			), 0u);
+		// Use the number of push tags as approximation of the number of calls to the function.
+		uint64_t numberOfCalls = _block.pushTagCount;
+		// Without inlining the execution of each call consists of two PushTags, two Jumps and two tags, totaling 24 gas.
+		bigint uninlinedExecutionCost = bigint(m_runs) * 24u * numberOfCalls;
+		// For each call two PushTags, one Jump and one tag are inserted in the code, totalling 8 bytes per call.
+		// Additionally the function body itself together with another tag and a return jump occur once.
+		bigint uninlinedDepositCost = (8u * _block.pushTagCount + 2 + codeSize) * 200u;
+		// When inlining the execution cost beyond the actual function execution is zero,
+		// but for each call a copy of the function is stored.
+		bigint inlinedCost = _block.pushTagCount * codeSize * 200;
 
-	// Always inline small blocks.
-	if (static_cast<size_t>(_block.items.size()) <= m_inlineMaxOpcodes)
-		return exitJump;
+		if (uninlinedExecutionCost + uninlinedDepositCost > inlinedCost)
+			return exitJump;
+	}
 
 	return nullopt;
 }
