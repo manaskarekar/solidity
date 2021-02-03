@@ -95,6 +95,7 @@ public:
 	int deposit() const { return m_deposit; }
 	void adjustDeposit(int _adjustment) { m_deposit += _adjustment; assertThrow(m_deposit >= 0, InvalidDeposit, ""); }
 	void setDeposit(int _deposit) { m_deposit = _deposit; assertThrow(m_deposit >= 0, InvalidDeposit, ""); }
+	std::string const& name() const { return m_name; }
 
 	/// Changes the source location used for each appended item.
 	void setSourceLocation(langutil::SourceLocation const& _location) { m_currentSourceLocation = _location; }
@@ -149,6 +150,7 @@ public:
 	std::vector<size_t> decodeSubPath(size_t _subObjectId) const;
 	size_t encodeSubPath(std::vector<size_t> const& _subPath);
 
+	Assembly(std::string _name = ""):m_name(std::move(_name)) { }
 protected:
 	/// Does the same operations as @a optimise, but should only be applied to a sub and
 	/// returns the replaced tags. Also takes an argument containing the tags of this assembly
@@ -193,6 +195,7 @@ protected:
 	mutable std::vector<size_t> m_tagPositionsInBytecode;
 
 	int m_deposit = 0;
+	std::string m_name;
 
 	langutil::SourceLocation m_currentSourceLocation;
 public:

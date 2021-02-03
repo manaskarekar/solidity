@@ -226,6 +226,48 @@ MachineAssemblyObject AssemblyStack::assemble(Machine _machine) const
 	return MachineAssemblyObject();
 }
 
+std::pair<MachineAssemblyObject, MachineAssemblyObject> AssemblyStack::assemble(std::string const& _runtimeName) const
+{
+	yulAssert(m_analysisSuccessful, "");
+	yulAssert(m_parserResult, "");
+	yulAssert(m_parserResult->code, "");
+	yulAssert(m_parserResult->analysisInfo, "");
+
+	evmasm::Assembly assembly;
+	EthAssemblyAdapter adapter(assembly);
+	compileEVM(adapter, false, m_optimiserSettings.optimizeStackAllocation);
+
+	MachineAssemblyObject creationObject;
+	creationObject.bytecode = make_shared<evmasm::LinkerObject>(assembly.assemble());
+	yulAssert(creationObject.bytecode->immutableReferences.empty(), "Leftover immutables.");
+	creationObject.assembly = assembly.assemblyString();
+	creationObject.sourceMappings = make_unique<string>(
+		evmasm::AssemblyItem::computeSourceMapping(
+			assembly.items(),
+			{{scanner().charStream() ? scanner().charStream()->name() : "", 0}}
+		)
+	);
+
+	MachineAssemblyObject runtimeObject;
+
+	// Pick matching runtime assembly
+	for (size_t i = 0; i < assembly.numSubs(); i++)
+		if (assembly.name() == _runtimeName)
+		{
+			evmasm::Assembly& runtimeAssembly = assembly.sub(0);
+			runtimeObject.bytecode = make_shared<evmasm::LinkerObject>(runtimeAssembly.assemble());
+			runtimeObject.assembly = runtimeAssembly.assemblyString();
+			runtimeObject.sourceMappings = make_unique<string>(
+				evmasm::AssemblyItem::computeSourceMapping(
+					runtimeAssembly.items(),
+					{{scanner().charStream() ? scanner().charStream()->name() : "", 0}}
+				)
+			);
+			break;
+		}
+	return {std::move(creationObject), std::move(runtimeObject)};
+}
+
 pair<MachineAssemblyObject, MachineAssemblyObject> AssemblyStack::assembleAndGuessRuntime() const
 {
 	yulAssert(m_analysisSuccessful, "");
