@@ -425,7 +425,7 @@ map<u256, u256> Assembly::optimiseInternal(
 
 		if (_settings.runInliner)
 		{
-			Inliner inliner{m_items, _settings.expectedExecutionsPerDeployment};
+			Inliner inliner{m_items, _settings.expectedExecutionsPerDeployment, _settings.isCreation, _settings.evmVersion};
 			inliner.optimise();
 		}
 

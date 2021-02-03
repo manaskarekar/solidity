@@ -23,6 +23,8 @@
 #include <libevmasm/Inliner.h>
 
 #include <libevmasm/AssemblyItem.h>
+#include <libevmasm/GasMeter.h>
+#include <libevmasm/KnownState.h>
 #include <libevmasm/SemanticInformation.h>
 
 #include <libsolutil/CommonData.h>
@@ -88,6 +90,31 @@ map<u256, Inliner::InlinableBlock> Inliner::determineInlinableBlocks(AssemblyIte
 	return result;
 }
 
+namespace {
+/// @returns an estimation of the runtime gas cost of the AsssemblyItems in @a _itemRange.
+template<typename RangeType>
+u256 executionCost(RangeType&& _itemRange, langutil::EVMVersion _evmVersion)
+{
+	GasMeter gasMeter{std::make_shared<KnownState>(), _evmVersion};
+	auto gasConsumption = ranges::accumulate(std::forward<RangeType>(_itemRange) | ranges::views::transform(
+		[&gasMeter](auto const& _item) { return gasMeter.estimateMax(_item, false); }
+	), GasMeter::GasConsumption());
+	if (gasConsumption.isInfinite)
+		return numeric_limits<u256>::max();
+	else
+		return gasConsumption.value;
+}
+/// @returns an estimation of the code size in bytes needed for the AssemblyItems in @a _itemRange.
+template<typename RangeType>
+uint64_t codeSize(RangeType&& _itemRange)
+{
+	// TODO: what is the best choice for the ``_addressLength`` argument here?
+	return ranges::accumulate(std::forward<RangeType>(_itemRange) | ranges::views::transform(
+			[](auto const& _item) { return _item.bytesRequired(2); }
+	), 0u);
+}
+}
+
 optional<AssemblyItem> Inliner::shouldInline(u256 const&, AssemblyItem const& _jump, InlinableBlock const& _block) const
 {
 	AssemblyItem exitJump = _block.items.back();
@@ -98,24 +125,49 @@ optional<AssemblyItem> Inliner::shouldInline(u256 const&, AssemblyItem const& _j
 	)
 	{
 		exitJump.setJumpType(AssemblyItem::JumpType::Ordinary);
-		// Accumulate size of inlined block in bytes.
-		size_t codeSize = ranges::accumulate(
-			ranges::views::drop_last(_block.items, 1) |
-			ranges::views::transform(
-				[](auto const& _item) { return _item.bytesRequired(3); }
-			), 0u);
-		// Use the number of push tags as approximation of the number of calls to the function.
-		uint64_t numberOfCalls = _block.pushTagCount;
-		// Without inlining the execution of each call consists of two PushTags, two Jumps and two tags, totaling 24 gas.
-		bigint uninlinedExecutionCost = bigint(m_runs) * 24u * numberOfCalls;
-		// For each call two PushTags, one Jump and one tag are inserted in the code, totalling 8 bytes per call.
-		// Additionally the function body itself together with another tag and a return jump occur once.
-		bigint uninlinedDepositCost = (8u * _block.pushTagCount + 2 + codeSize) * 200u;
-		// When inlining the execution cost beyond the actual function execution is zero,
-		// but for each call a copy of the function is stored.
-		bigint inlinedCost = _block.pushTagCount * codeSize * 200;
 
-		if (uninlinedExecutionCost + uninlinedDepositCost > inlinedCost)
+		// Accumulate size of the inline candidate block in bytes (without the return jump).
+		uint64_t functionBodySize = codeSize(ranges::views::drop_last(_block.items, 1));
+
+		// Use the number of push tags as approximation of the average number of calls to the function per run.
+		uint64_t numberOfCalls = _block.pushTagCount;
+		// Also use the number of push tags as approximation of the number of call sites to the function.
+		uint64_t numberOfCallSites = _block.pushTagCount;
+
+		static AssemblyItems const uninlinedCallSitePattern = {
+			AssemblyItem{PushTag},
+			AssemblyItem{PushTag},
+			AssemblyItem{Instruction::JUMP},
+			AssemblyItem{Tag}
+		};
+		static AssemblyItems const uninlinedJumpSitePattern = {
+			AssemblyItem{Tag},
+			// Actual function body of size functionBodySize. Handled separately below.
+			AssemblyItem{Instruction::JUMP}
+		};
+
+		// Both the call site and jump site pattern is executed for each call.
+		// Since the function body has to be executed equally often both with and without inlining,
+		// it can be ignored.
+		bigint uninlinedExecutionCost = numberOfCalls * (
+			executionCost(uninlinedCallSitePattern, m_evmVersion) +
+			executionCost(uninlinedJumpSitePattern, m_evmVersion)
+		);
+		// Each call site deposits the call site pattern, whereas the jump site pattern and the function itself are deposited once.
+		bigint uninlinedDepositCost = GasMeter::dataGas(
+			numberOfCallSites * codeSize(uninlinedCallSitePattern) +
+			codeSize(uninlinedJumpSitePattern) +
+			functionBodySize,
+			m_isCreation,
+			m_evmVersion
+		);
+		// When inlining the execution cost beyond the actual function execution is zero,
+		// but for each call site a copy of the function is deposited.
+		bigint inlinedDepositCost = GasMeter::dataGas(numberOfCallSites * functionBodySize, m_isCreation, m_evmVersion);
+
+		// If the estimated runtime cost over the lifetime of the contract plus the deposit cost in the uninlined case
+		// exceed the inlined deposit costs, it is beneficial to inline.
+		if (bigint(m_runs) * uninlinedExecutionCost + uninlinedDepositCost > inlinedDepositCost)
 			return exitJump;
 	}
 

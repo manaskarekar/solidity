@@ -22,6 +22,8 @@
 #pragma once
 
 #include <libsolutil/Common.h>
+#include <liblangutil/EVMVersion.h>
+
 #include <range/v3/view/span.hpp>
 #include <map>
 #include <vector>
@@ -34,7 +36,8 @@ using AssemblyItems = std::vector<AssemblyItem>;
 class Inliner
 {
 public:
-	explicit Inliner(AssemblyItems& _items, size_t _runs): m_items(_items), m_runs(_runs) {}
+	explicit Inliner(AssemblyItems& _items, size_t _runs, bool _isCreation, langutil::EVMVersion _evmVersion)
+	: m_items(_items), m_runs(_runs), m_isCreation(_isCreation), m_evmVersion(_evmVersion) {}
 	virtual ~Inliner() = default;
 
 	void optimise();
@@ -54,7 +57,9 @@ private:
 	std::map<u256, InlinableBlock> determineInlinableBlocks(AssemblyItems const& _items) const;
 
 	AssemblyItems& m_items;
-	size_t const m_runs;
+	size_t const m_runs = 200;
+	bool const m_isCreation = false;
+	langutil::EVMVersion const m_evmVersion;
 };
 
 }
