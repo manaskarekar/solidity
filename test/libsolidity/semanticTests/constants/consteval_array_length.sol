@@ -8,8 +8,9 @@ contract C {
     }
 }
 // ====
-// compileViaYul: true
 // compileToEwasm: also
+// compileViaYul: true
 // ----
 // constructor() ->
+// gas irOptimized: 105929
 // f() -> 0x0a, 0x0a

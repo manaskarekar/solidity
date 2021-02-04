@@ -17,5 +17,8 @@ contract C {
 // compileViaYul: also
 // ----
 // constructor(): 3 ->
+// gas irOptimized: 170188
+// gas legacy: 205113
+// gas legacyOptimized: 141771
 // f() -> 84, 23
 // m(uint256): 3 -> 7

@@ -19,5 +19,8 @@ contract Main {
 // compileViaYul: also
 // ----
 // constructor(): "abc", true
+// gas irOptimized: 148076
+// gas legacy: 145794
+// gas legacyOptimized: 110572
 // getFlag() -> true
 // getName() -> "abc"
