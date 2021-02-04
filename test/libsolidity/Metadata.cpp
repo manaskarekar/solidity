@@ -91,7 +91,9 @@ BOOST_AUTO_TEST_CASE(metadata_stamp)
 		})
 		{
 			CompilerStack compilerStack;
-			compilerStack.overwriteReleaseFlag(release);
+			compilerStack.setVersionType(
+				release ? CompilerStack::VersionType::Release : CompilerStack::VersionType::Prerelease
+			);
 			compilerStack.setSources({{"", std::string(sourceCode)}});
 			compilerStack.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
 			compilerStack.setOptimiserSettings(solidity::test::CommonOptions::get().optimize);
@@ -152,7 +154,9 @@ BOOST_AUTO_TEST_CASE(metadata_stamp_experimental)
 		})
 		{
 			CompilerStack compilerStack;
-			compilerStack.overwriteReleaseFlag(release);
+			compilerStack.setVersionType(
+				release ? CompilerStack::VersionType::Release : CompilerStack::VersionType::Prerelease
+			);
 			compilerStack.setSources({{"", std::string(sourceCode)}});
 			compilerStack.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
 			compilerStack.setOptimiserSettings(solidity::test::CommonOptions::get().optimize);
