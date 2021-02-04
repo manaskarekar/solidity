@@ -1579,6 +1579,9 @@ private:
 
 bytes CompilerStack::createCBORMetadata(Contract const& _contract) const
 {
+	if (m_versionType == VersionType::Empty)
+		return bytes{};
+
 	bool const experimentalMode = !onlySafeExperimentalFeaturesActivated(
 		_contract.contract->sourceUnit().annotation().experimentalFeatures
 	);

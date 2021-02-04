@@ -109,6 +109,9 @@ SemanticTest::SemanticTest(
 
 	parseExpectations(m_reader.stream());
 	soltestAssert(!m_tests.empty(), "No tests specified in " + _filename);
+
+	m_compiler.setVersionType(CompilerStack::VersionType::Empty);
+	m_compiler.setMetadataHash(CompilerStack::MetadataHash::None);
 }
 
 TestCase::TestResult SemanticTest::run(ostream& _stream, string const& _linePrefix, bool _formatted)
