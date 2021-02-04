@@ -37,7 +37,8 @@ string TestFunctionCall::format(
 	string const& _linePrefix,
 	bool const _renderResult,
 	bool const _highlight,
-	bool const _renderGasCostResult
+	bool const _renderGasCostResult,
+	bool const _debugGasPrint
 ) const
 {
 	stringstream stream;
@@ -205,7 +206,7 @@ string TestFunctionCall::format(
 			}
 		}
 
-		stream << formatGasExpectations(_linePrefix, _renderGasCostResult);
+		stream << formatGasExpectations(_linePrefix, _renderGasCostResult, _debugGasPrint);
 	};
 
 	formatOutput(m_call.displayMode == FunctionCall::DisplayMode::SingleLine);
@@ -321,12 +322,39 @@ string TestFunctionCall::formatRawParameters(
 	return os.str();
 }
 
-string TestFunctionCall::formatGasExpectations(string const& _linePrefix, bool const _renderGasCostResult) const
+string TestFunctionCall::formatGasExpectations(
+	string const& _linePrefix,
+	bool const _renderGasCostResult,
+	bool const _debugGasPrint
+) const
 {
 	stringstream os;
 	for (auto const& [runType, gasUsed]: (_renderGasCostResult ? m_gasCosts : m_call.expectations.gasUsed))
+	{
+		bool differentResults =
+			m_gasCosts.count(runType) > 0 &&
+			m_call.expectations.gasUsed.count(runType) > 0 &&
+			m_gasCosts.at(runType) != m_call.expectations.gasUsed.at(runType);
+		bool increase = (m_gasCosts.at(runType) > m_call.expectations.gasUsed.at(runType));
+		u256 difference =
+			increase ?
+			(m_gasCosts.at(runType) - m_call.expectations.gasUsed.at(runType)) :
+			(m_call.expectations.gasUsed.at(runType) - m_gasCosts.at(runType));
+		size_t percent = static_cast<size_t>(
+			100.0 * (static_cast<double>(difference) / static_cast<double>(m_call.expectations.gasUsed.at(runType)))
+		);
+
 		if (!runType.empty())
+		{
 			os << endl << _linePrefix << "// gas " << runType << ": " << (gasUsed.str());
+			string sign = (increase ? "+" : "-");
+			os << (
+			   	(_debugGasPrint && differentResults && _renderGasCostResult) ?
+				(" ["s + sign + difference.str() + " (" + sign + to_string(percent)) + "%)]" :
+				""s
+			);
+		}
+	}
 	return os.str();
 }
 

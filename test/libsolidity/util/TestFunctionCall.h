@@ -59,7 +59,8 @@ public:
 		std::string const& _linePrefix = "",
 		bool const _renderResult = false,
 		bool const _highlight = false,
-		bool const _renderGasCostResult = false
+		bool const _renderGasCostResult = false,
+		bool const _debugGasPrint = false
 	) const;
 
 	/// Overloaded version that passes an error reporter which is never used outside
@@ -124,7 +125,8 @@ private:
 	/// Formats gas usage expectations one per line
 	std::string formatGasExpectations(
 		std::string const& _linePrefix,
-		bool const _renderGasCostResult
+		bool const _renderGasCostResult,
+		bool const _debugGasPrint
 	) const;
 
 	/// Compares raw expectations (which are converted to a byte representation before),
